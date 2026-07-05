@@ -96,8 +96,8 @@ local C = {
     bg = Color3.fromRGB(12, 12, 15),
     card = Color3.fromRGB(18, 18, 22),
     border = Color3.fromRGB(138, 43, 226),
-    dim2 = Color3.fromRGB(35, 35, 40), -- Darker
-    highlight = Color3.fromRGB(35, 35, 40), -- Darker & same
+    dim2 = Color3.fromRGB(35, 35, 40),
+    highlight = Color3.fromRGB(35, 35, 40),
     textPurple = Color3.fromRGB(180, 100, 255),
     black = Color3.fromRGB(0, 0, 0),
 }
@@ -242,9 +242,7 @@ for _, plot in ipairs(Plots:GetChildren()) do
             item.BorderSizePixel = 0
             Instance.new("UICorner", item).CornerRadius = UDim.new(0, 4)
 
-            local stroke = Instance.new("UIStroke", item)
-            stroke.Color = C.border
-            stroke.Thickness = 1
+            -- Removed individual item borders as requested
 
             local checkBox = Instance.new("TextButton", item)
             checkBox.Size = UDim2.new(0, 16, 0, 16)
@@ -440,3 +438,4 @@ local function setupDragging(frame)
 end
 
 setupDragging(main)
+setupDragging(openBtn)
