@@ -1,0 +1,442 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LP = Players.LocalPlayer
+local items = {}
+local SelectedIndexes = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
+
+local BrainrotCard = require(ReplicatedStorage.Shared.BrainrotCard)
+local OverheadController = require(ReplicatedStorage.Controllers.AnimalOverheadController)
+
+local oldObserve
+oldObserve = hookfunction(BrainrotCard.ObserveOneOfOne, function(record, callback)
+    return oldObserve(record, function(originalValue)
+        if SelectedIndexes[record.Index] then
+            callback(true)
+        else
+            callback(originalValue)
+        end
+    end)
+end)
+
+local oldApply
+oldApply = hookfunction(BrainrotCard.ApplyOneOfOne, function(gui, state, ...)
+    local title = gui:FindFirstChild("Spacer")
+    if title and title:FindFirstChild("Title") then
+        local name = title.Title.Text
+        if SelectedIndexes[name] then
+            state = true
+        end
+    end
+    return oldApply(gui, state, ...)
+end)
+
+local originalPopulate
+originalPopulate = hookfunction(OverheadController.Populate, function(self, data)
+    originalPopulate(self, data)
+    if data.Overhead then
+        local banner = data.Overhead:FindFirstChild("1OF1Banner")
+        if banner then
+            local displayName = data.Overhead:FindFirstChild("DisplayName")
+            if displayName and displayName:IsA("TextLabel") then
+                banner.Visible = SelectedIndexes[displayName.Text] or false
+            end
+        end
+    end
+end)
+
+local function forceBanners()
+    for _, instance in ipairs(Workspace:GetDescendants()) do
+        if instance.Name == "1OF1Banner" and instance:IsA("GuiObject") then
+            local parent = instance.Parent
+            local displayName = parent and parent:FindFirstChild("DisplayName")
+            if displayName and displayName:IsA("TextLabel") then
+                instance.Visible = SelectedIndexes[displayName.Text] or false
+            end
+        end
+    end
+    
+    for _, part in ipairs(Debris:GetChildren()) do
+        if part:IsA("Part") and part.Name == "FastOverheadTemplate" then
+            local overhead = part:FindFirstChild("AnimalOverhead")
+            if overhead then
+                local displayName = overhead:FindFirstChild("DisplayName")
+                local banner = overhead:FindFirstChild("1OF1Banner")
+                if displayName and banner and banner:IsA("GuiObject") then
+                    banner.Visible = SelectedIndexes[displayName.Text] or false
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(2)
+        forceBanners()
+    end
+end)
+
+local old = game:GetService("CoreGui"):FindFirstChild("NovaGUI")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "NovaGUI"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 15
+gui.IgnoreGuiInset = true
+if not pcall(function() gui.Parent = game:GetService("CoreGui") end) then
+    gui.Parent = LP:WaitForChild("PlayerGui")
+end
+
+local C = {
+    bg = Color3.fromRGB(12, 12, 15),
+    card = Color3.fromRGB(18, 18, 22),
+    border = Color3.fromRGB(138, 43, 226),
+    dim2 = Color3.fromRGB(35, 35, 40), -- Darker
+    highlight = Color3.fromRGB(35, 35, 40), -- Darker & same
+    textPurple = Color3.fromRGB(180, 100, 255),
+    black = Color3.fromRGB(0, 0, 0),
+}
+
+local main = Instance.new("Frame", gui)
+main.Name = "Main"
+main.Size = UDim2.new(0, 220, 0, 235)
+main.Position = UDim2.new(0.5, -110, 0.5, -120)
+main.BackgroundColor3 = C.bg
+main.BackgroundTransparency = 0.3
+main.BorderSizePixel = 0
+main.Active = true
+main.Visible = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+
+local mainStroke = Instance.new("UIStroke", main)
+mainStroke.Color = C.border
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.3
+
+local glowStroke = Instance.new("UIStroke", main)
+glowStroke.Color = C.border
+glowStroke.Thickness = 3
+glowStroke.Transparency = 0.7
+
+local topBar = Instance.new("Frame", main)
+topBar.Size = UDim2.new(1, 0, 0, 26)
+topBar.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+topBar.BackgroundTransparency = 0.4
+topBar.BorderSizePixel = 0
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 12)
+local topPatch = Instance.new("Frame", topBar)
+topPatch.Size = UDim2.new(1, 0, 0, 12)
+topPatch.Position = UDim2.new(0, 0, 1, -12)
+topPatch.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+topPatch.BackgroundTransparency = 0.4
+topPatch.BorderSizePixel = 0
+
+local titleLbl = Instance.new("TextLabel", topBar)
+titleLbl.Size = UDim2.new(1, -40, 1, 0)
+titleLbl.Position = UDim2.new(0, 12, 0, 0)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text = "1 OF 1 VISUAL"
+titleLbl.TextColor3 = C.textPurple
+titleLbl.Font = Enum.Font.GothamBold
+titleLbl.TextSize = 11
+titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -28, 0, 1)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "-"
+closeBtn.TextColor3 = C.textPurple
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
+closeBtn.TextXAlignment = Enum.TextXAlignment.Center
+closeBtn.TextYAlignment = Enum.TextYAlignment.Center
+
+local openBtn = Instance.new("Frame", gui)
+openBtn.Size = UDim2.new(0, 160, 0, 32)
+openBtn.Position = UDim2.new(1, -170, 0.02, 0)
+openBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+openBtn.BackgroundTransparency = 0.3
+openBtn.Visible = false
+Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 8)
+local openStroke = Instance.new("UIStroke", openBtn)
+openStroke.Color = C.border
+openStroke.Thickness = 1
+
+local labelText = Instance.new("TextLabel", openBtn)
+labelText.Size = UDim2.new(0.72, 0, 1, 0)
+labelText.BackgroundTransparency = 1
+labelText.Text = "1 OF 1 VISUAL"
+labelText.TextColor3 = C.textPurple
+labelText.Font = Enum.Font.GothamBold
+labelText.TextSize = 13
+labelText.TextXAlignment = Enum.TextXAlignment.Left
+labelText.Position = UDim2.new(0.05, 0, 0, 0)
+
+local plusBtn = Instance.new("TextButton", openBtn)
+plusBtn.Size = UDim2.new(0.2, 0, 1, 0)
+plusBtn.Position = UDim2.new(0.78, 0, 0, 0)
+plusBtn.BackgroundTransparency = 1
+plusBtn.Text = "+"
+plusBtn.TextColor3 = C.textPurple
+plusBtn.Font = Enum.Font.GothamBold
+plusBtn.TextSize = 18
+
+closeBtn.MouseButton1Click:Connect(function()
+    main.Visible = false
+    openBtn.Visible = true
+end)
+
+plusBtn.MouseButton1Click:Connect(function()
+    openBtn.Visible = false
+    main.Visible = true
+end)
+
+local listFrame = Instance.new("Frame", main)
+listFrame.Size = UDim2.new(1, -16, 0, 115)
+listFrame.Position = UDim2.new(0, 8, 0, 34)
+listFrame.BackgroundColor3 = C.card
+listFrame.BackgroundTransparency = 0.3
+listFrame.BorderSizePixel = 0
+Instance.new("UICorner", listFrame).CornerRadius = UDim.new(0, 8)
+local listStroke = Instance.new("UIStroke", listFrame)
+listStroke.Color = C.border
+listStroke.Thickness = 1
+
+local scroll = Instance.new("ScrollingFrame", listFrame)
+scroll.Size = UDim2.new(1, -18, 1, -12)
+scroll.Position = UDim2.new(0, 9, 0, 6)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ScrollingEnabled = true
+
+local uiListLayout = Instance.new("UIListLayout", scroll)
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 3)
+
+local Plots = workspace:WaitForChild("Plots")
+
+local function findAnimator(model)
+    for _, v in ipairs(model:GetDescendants()) do
+        if v:IsA("Animator") then
+            return true
+        end
+    end
+    return false
+end
+
+for _, plot in ipairs(Plots:GetChildren()) do
+    for _, obj in ipairs(plot:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name ~= "Baseplate" and findAnimator(obj) then
+            local item = Instance.new("Frame")
+            item.Size = UDim2.new(1, 0, 0, 20)
+            item.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+            item.BackgroundTransparency = 0.3
+            item.BorderSizePixel = 0
+            Instance.new("UICorner", item).CornerRadius = UDim.new(0, 4)
+
+            local stroke = Instance.new("UIStroke", item)
+            stroke.Color = C.border
+            stroke.Thickness = 1
+
+            local checkBox = Instance.new("TextButton", item)
+            checkBox.Size = UDim2.new(0, 16, 0, 16)
+            checkBox.Position = UDim2.new(0, 5, 0.5, -8)
+            checkBox.BackgroundColor3 = C.dim2
+            checkBox.BackgroundTransparency = 0.3
+            checkBox.BorderSizePixel = 0
+            checkBox.Text = ""
+            checkBox.AutoButtonColor = false
+            Instance.new("UICorner", checkBox).CornerRadius = UDim.new(0, 3)
+
+            local checkMark = Instance.new("TextLabel", checkBox)
+            checkMark.Size = UDim2.new(1, 0, 1, 0)
+            checkMark.BackgroundTransparency = 1
+            checkMark.Text = ""
+            checkMark.TextColor3 = C.black
+            checkMark.Font = Enum.Font.GothamBold
+            checkMark.TextSize = 14
+
+            local label = Instance.new("TextLabel", item)
+            label.Size = UDim2.new(1, -55, 1, 0)
+            label.Position = UDim2.new(0, 28, 0, 0)
+            label.BackgroundTransparency = 1
+            label.Text = obj.Name
+            label.TextColor3 = C.textPurple
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 9
+            label.TextXAlignment = Enum.TextXAlignment.Left
+
+            local data = {
+                item = item,
+                model = obj,
+                selected = false,
+                checkBox = checkBox,
+                checkMark = checkMark
+            }
+
+            local function toggle()
+                data.selected = not data.selected
+                if data.selected then
+                    TweenService:Create(checkBox, TweenInfo.new(0.25, Enum.EasingStyle.Back), {BackgroundColor3 = C.textPurple, BackgroundTransparency = 0}):Play()
+                    checkMark.Text = "✓"
+                else
+                    TweenService:Create(checkBox, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = C.dim2, BackgroundTransparency = 0.3}):Play()
+                    checkMark.Text = ""
+                end
+            end
+
+            data.toggle = toggle
+
+            checkBox.MouseButton1Click:Connect(function()
+                toggle()
+            end)
+
+            item.Parent = scroll
+            table.insert(items, data)
+        end
+    end
+end
+
+uiListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scroll.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y + 8)
+end)
+scroll.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y + 8)
+
+local infoFrame = Instance.new("Frame", main)
+infoFrame.Size = UDim2.new(1, -16, 0, 35)
+infoFrame.Position = UDim2.new(0, 8, 1, -68)
+infoFrame.BackgroundTransparency = 1
+
+local infoText = Instance.new("TextLabel", infoFrame)
+infoText.Size = UDim2.new(1, 0, 1, 0)
+infoText.Position = UDim2.new(0, 0, 0, 0)
+infoText.BackgroundTransparency = 1
+infoText.Text = "Select a 1 of 1"
+infoText.TextColor3 = C.textPurple
+infoText.Font = Enum.Font.GothamMedium
+infoText.TextSize = 9
+infoText.TextXAlignment = Enum.TextXAlignment.Center
+
+local buttonFrame = Instance.new("Frame", main)
+buttonFrame.Size = UDim2.new(1, -16, 0, 26)
+buttonFrame.Position = UDim2.new(0, 8, 1, -34)
+buttonFrame.BackgroundTransparency = 1
+
+local todosBtn = Instance.new("TextButton", buttonFrame)
+todosBtn.Size = UDim2.new(0.32, 0, 1, 0)
+todosBtn.Position = UDim2.new(0, 0, 0, 0)
+todosBtn.BackgroundColor3 = C.dim2
+todosBtn.BackgroundTransparency = 0.4
+todosBtn.Text = "All"
+todosBtn.TextColor3 = C.textPurple
+todosBtn.Font = Enum.Font.GothamBold
+todosBtn.TextSize = 10
+Instance.new("UICorner", todosBtn).CornerRadius = UDim.new(0, 5)
+Instance.new("UIStroke", todosBtn).Color = C.border
+
+local ningunoBtn = Instance.new("TextButton", buttonFrame)
+ningunoBtn.Size = UDim2.new(0.32, 0, 1, 0)
+ningunoBtn.Position = UDim2.new(0.34, 0, 0, 0)
+ningunoBtn.BackgroundColor3 = C.dim2
+ningunoBtn.BackgroundTransparency = 0.4
+ningunoBtn.Text = "None"
+ningunoBtn.TextColor3 = C.textPurple
+ningunoBtn.Font = Enum.Font.GothamBold
+ningunoBtn.TextSize = 10
+Instance.new("UICorner", ningunoBtn).CornerRadius = UDim.new(0, 5)
+Instance.new("UIStroke", ningunoBtn).Color = C.border
+
+local seleccionarBtn = Instance.new("TextButton", buttonFrame)
+seleccionarBtn.Size = UDim2.new(0.32, 0, 1, 0)
+seleccionarBtn.Position = UDim2.new(0.68, 0, 0, 0)
+seleccionarBtn.BackgroundColor3 = C.dim2
+seleccionarBtn.BackgroundTransparency = 0.4
+seleccionarBtn.Text = "Apply"
+seleccionarBtn.TextColor3 = C.textPurple
+seleccionarBtn.Font = Enum.Font.GothamBold
+seleccionarBtn.TextSize = 10
+Instance.new("UICorner", seleccionarBtn).CornerRadius = UDim.new(0, 5)
+local applyStroke = Instance.new("UIStroke", seleccionarBtn)
+applyStroke.Color = C.border
+applyStroke.Thickness = 1
+
+todosBtn.MouseButton1Click:Connect(function()
+    for _, data in ipairs(items) do
+        if not data.selected then
+            data.toggle()
+        end
+    end
+end)
+
+ningunoBtn.MouseButton1Click:Connect(function()
+    for _, data in ipairs(items) do
+        if data.selected then
+            data.toggle()
+        end
+    end
+end)
+
+seleccionarBtn.MouseButton1Click:Connect(function()
+    SelectedIndexes = {}
+    
+    for _, data in ipairs(items) do
+        if data.selected then
+            SelectedIndexes[data.model.Name] = true
+        end
+    end
+    
+    forceBanners()
+end)
+
+local function setupDragging(frame)
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    local inputObject = nil
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            inputObject = input
+        end
+    end)
+    
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging and startPos then
+                local delta = input.Position - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end
+    end)
+    
+    frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if input == inputObject then
+                dragging = false
+                dragStart = nil
+                startPos = nil
+                inputObject = nil
+            end
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+setupDragging(main)
